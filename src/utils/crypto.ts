@@ -52,3 +52,31 @@ export function verifyMasterSSOToken(
     return null;
   }
 }
+
+/**
+ * Encrypts a plaintext API key using AES-256 with the provided secret.
+ * Embeds a prefix marker so invalid decryption attempts are reliably detected.
+ * Returns the ciphertext string for safe database storage.
+ */
+export function encryptApiKey(apiKey: string, secret: string): string {
+  return CryptoJS.AES.encrypt(`qm:${apiKey}`, secret).toString();
+}
+
+/**
+ * Decrypts an AES-encrypted API key using the provided secret.
+ * Returns the plaintext key, or null if decryption fails or the marker is absent
+ * (which reliably detects wrong-secret or tampered ciphertext).
+ */
+export function decryptApiKey(
+  encrypted: string,
+  secret: string
+): string | null {
+  try {
+    const bytes = CryptoJS.AES.decrypt(encrypted, secret);
+    const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+    if (!plaintext.startsWith("qm:")) return null;
+    return plaintext.slice(3);
+  } catch {
+    return null;
+  }
+}
