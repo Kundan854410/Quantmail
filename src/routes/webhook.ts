@@ -14,6 +14,23 @@ import {
 import { requireAdmin } from "../middleware/authMiddleware";
 import { prisma } from "../db";
 
+/** Simple in-memory rate limiter for the webhook verify endpoint. */
+const verifyRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const VERIFY_RATE_LIMIT_WINDOW_MS = 60_000;
+const VERIFY_RATE_LIMIT_MAX = 30;
+
+function checkVerifyRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = verifyRateLimitMap.get(ip);
+  if (!entry || entry.resetAt < now) {
+    verifyRateLimitMap.set(ip, { count: 1, resetAt: now + VERIFY_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= VERIFY_RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   /**
    * POST /webhooks/register
@@ -106,6 +123,10 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   app.post<{
     Body: { payload: string; signature: string; secret: string };
   }>("/webhooks/verify", async (request, reply) => {
+    if (!checkVerifyRateLimit(request.ip)) {
+      return reply.code(429).send({ error: "Rate limit exceeded" });
+    }
+
     const { payload, signature, secret } = request.body;
 
     if (!payload || !signature || !secret) {

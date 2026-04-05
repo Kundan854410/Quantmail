@@ -154,11 +154,22 @@ function buildSendGridProvider(apiKey: string): EmailProvider {
 function buildSESProvider(): EmailProvider {
   return {
     async send(message: EmailMessage): Promise<EmailSendResult> {
-      // Attempt to import the AWS SDK at runtime.
+      // Attempt to import the AWS SDK at runtime via a non-static path so
+      // TypeScript does not try to resolve the optional package at compile time.
+      const awsSesModule = "@aws-sdk/client-ses";
       try {
-        // Dynamic import so the package is optional.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses") as {
+        const sesModule = await (
+          import(/* @vite-ignore */ awsSesModule) as Promise<unknown>
+        ).catch(() => null);
+
+        if (!sesModule) {
+          console.warn(
+            "[EmailService] @aws-sdk/client-ses not installed; falling back to mock."
+          );
+          return mockEmailProvider.send(message);
+        }
+
+        const { SESClient, SendEmailCommand } = sesModule as {
           SESClient: new (cfg: Record<string, unknown>) => {
             send: (cmd: unknown) => Promise<{ MessageId?: string }>;
           };
@@ -191,15 +202,6 @@ function buildSESProvider(): EmailProvider {
           provider: "ses",
         };
       } catch (err) {
-        if (
-          err instanceof Error &&
-          err.message.includes("Cannot find module")
-        ) {
-          console.warn(
-            "[EmailService] @aws-sdk/client-ses not installed; falling back to mock."
-          );
-          return mockEmailProvider.send(message);
-        }
         return {
           success: false,
           provider: "ses",
