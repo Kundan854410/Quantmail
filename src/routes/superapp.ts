@@ -13,6 +13,7 @@
 
 import { FastifyInstance } from "fastify";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { streamText, generateObject, generateText } from "ai";
 import { z } from "zod";
 import { getAIConfig } from "../lib/ai-router";
@@ -21,9 +22,15 @@ import { getAIConfig } from "../lib/ai-router";
 
 /**
  * Builds the AI provider model instance from an AiConfig.
- * Currently only OpenAI (and OpenAI-compatible custom) is supported.
+ * Selects the correct SDK (OpenAI vs Anthropic) based on the resolved provider.
  */
 function buildModel(config: Awaited<ReturnType<typeof getAIConfig>>) {
+  if (config.provider === "anthropic") {
+    const anthropic = createAnthropic({ apiKey: config.apiKey });
+    return anthropic(config.modelId);
+  }
+
+  // "openai" and "custom" (OpenAI-compatible) both use createOpenAI.
   const openai = createOpenAI({
     apiKey: config.apiKey,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
@@ -208,14 +215,6 @@ export async function superAppRoutes(app: FastifyInstance): Promise<void> {
 
       const settings = await prisma.userAiSettings.findUnique({
         where: { userId },
-        select: {
-          preferredProvider: true,
-          customModelUrl: true,
-          // Never expose raw keys — return only presence flags.
-          openaiKey: false,
-          anthropicKey: false,
-          customModelKey: false,
-        },
       });
 
       if (!settings) {
@@ -228,17 +227,13 @@ export async function superAppRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Re-query with key presence check only.
-      const full = await prisma.userAiSettings.findUnique({
-        where: { userId },
-      });
-
+      // Never expose raw key values — return only presence flags.
       return reply.send({
-        hasOpenaiKey: Boolean(full?.openaiKey),
-        hasAnthropicKey: Boolean(full?.anthropicKey),
-        hasCustomKey: Boolean(full?.customModelKey),
-        preferredProvider: full?.preferredProvider ?? "openai",
-        customModelUrl: full?.customModelUrl ?? null,
+        hasOpenaiKey: Boolean(settings.openaiKey),
+        hasAnthropicKey: Boolean(settings.anthropicKey),
+        hasCustomKey: Boolean(settings.customModelKey),
+        preferredProvider: settings.preferredProvider,
+        customModelUrl: settings.customModelUrl,
       });
     }
   );
@@ -264,7 +259,14 @@ export async function superAppRoutes(app: FastifyInstance): Promise<void> {
       preferredProvider,
     } = request.body;
 
-    const data: Record<string, string | null | undefined> = {};
+    // Build the update payload with only `string | null` values (no undefined).
+    const data: {
+      openaiKey?: string | null;
+      anthropicKey?: string | null;
+      customModelUrl?: string | null;
+      customModelKey?: string | null;
+      preferredProvider?: string;
+    } = {};
     if (openaiKey !== undefined) data.openaiKey = openaiKey || null;
     if (anthropicKey !== undefined) data.anthropicKey = anthropicKey || null;
     if (customModelUrl !== undefined) data.customModelUrl = customModelUrl || null;
