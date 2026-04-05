@@ -16,6 +16,10 @@ export interface AiConfig {
   modelId: string;
 }
 
+/** Default model IDs used when no explicit model is configured. */
+export const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+export const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
+
 /**
  * Resolves the best available AI configuration for the given user.
  * Prefers the user's own BYOK key; falls back to the platform admin key.
@@ -39,7 +43,7 @@ export async function getAIConfig(userId: string): Promise<AiConfig> {
       return {
         apiKey: userSettings.anthropicKey,
         provider: "anthropic",
-        modelId: "claude-3-5-sonnet-20241022",
+        modelId: DEFAULT_ANTHROPIC_MODEL,
       };
     }
 
@@ -60,7 +64,7 @@ export async function getAIConfig(userId: string): Promise<AiConfig> {
       return {
         apiKey: userSettings.openaiKey,
         provider: "openai",
-        modelId: "gpt-4o-mini",
+        modelId: DEFAULT_OPENAI_MODEL,
       };
     }
   }
@@ -84,7 +88,7 @@ export async function getAIConfig(userId: string): Promise<AiConfig> {
     return {
       apiKey: adminOpenaiKey,
       provider: "openai",
-      modelId: "gpt-4o-mini",
+      modelId: DEFAULT_OPENAI_MODEL,
     };
   }
 
@@ -92,7 +96,7 @@ export async function getAIConfig(userId: string): Promise<AiConfig> {
     return {
       apiKey: adminAnthropicKey,
       provider: "anthropic",
-      modelId: "claude-3-5-sonnet-20241022",
+      modelId: DEFAULT_ANTHROPIC_MODEL,
     };
   }
 

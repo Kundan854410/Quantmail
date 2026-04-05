@@ -20,6 +20,9 @@ import { getAIConfig } from "../lib/ai-router";
 
 // ─── Helper ────────────────────────────────────────────────────────────────
 
+/** Default model IDs used when no explicit model is configured. */
+const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+
 /**
  * Builds the AI provider model instance from an AiConfig.
  * Selects the correct SDK (OpenAI vs Anthropic) based on the resolved provider.
@@ -35,7 +38,9 @@ function buildModel(config: Awaited<ReturnType<typeof getAIConfig>>) {
     apiKey: config.apiKey,
     ...(config.baseURL ? { baseURL: config.baseURL } : {}),
   });
-  return openai(config.modelId === "custom" ? "gpt-4o-mini" : config.modelId);
+  return openai(
+    config.modelId === "custom" ? DEFAULT_OPENAI_MODEL : config.modelId
+  );
 }
 
 // ─── Routes ────────────────────────────────────────────────────────────────
