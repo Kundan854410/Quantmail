@@ -6,3 +6,8 @@ dist/
 coverage/
 tmp/
 src/generated/
+
+# Frontend
+frontend/.next/
+frontend/node_modules/
+frontend/out/
