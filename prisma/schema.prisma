@@ -7,6 +7,8 @@ datasource db {
   provider = "sqlite"
 }
 
+// ─── Core Identity ───────────────────────────────────────────────
+
 model User {
   id             String         @id @default(uuid())
   displayName    String
@@ -16,9 +18,17 @@ model User {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  livenessGrid   LivenessGrid?
-  digitalTwin    DigitalTwin?
-  inboxMessages  InboxMessage[]
+  livenessGrid              LivenessGrid?
+  digitalTwin               DigitalTwin?
+  inboxMessages             InboxMessage[]
+  saccadeSessions           SaccadeSession[]
+  iotDevices                ConnectedIoTDevice[]
+  criticalAlerts            CriticalAlert[]
+  dashboardLogins           DashboardPhysicalLogin[]
+  deviceTokens              DeviceToken[]
+  livenessChallenges        LivenessChallenge[]
+  pushNotifications         PushNotification[]
+  quanttubeWatchEvents      QuanttubeWatchEvent[]
 }
 
 model LivenessGrid {
@@ -43,6 +53,8 @@ model DigitalTwin {
   user User @relation(fields: [userId], references: [id])
 }
 
+// ─── Inbox & Shadow Filter ───────────────────────────────────────
+
 model InboxMessage {
   id          String   @id @default(uuid())
   userId      String
@@ -51,7 +63,8 @@ model InboxMessage {
   body        String
   receivedAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user           User                  @relation(fields: [userId], references: [id])
+  criticalAlerts CriticalAlert[]
 }
 
 model ShadowInbox {
@@ -63,4 +76,185 @@ model ShadowInbox {
   domain         String
   reason         String   @default("UNVERIFIED_DOMAIN")
   droppedAt      DateTime @default(now())
+}
+
+// ─── Saccade Liveness (Quantedits Integration) ───────────────────
+
+model SaccadeSession {
+  id              String   @id @default(uuid())
+  userId          String
+  saccadeHash     String
+  sampleCount     Int
+  entropyScore    Float
+  recordedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── IoT Alarm Orchestration ─────────────────────────────────────
+
+enum AlarmStatus {
+  ACTIVE
+  SILENCED
+  EXPIRED
+}
+
+enum DispatchStatus {
+  PENDING
+  DISPATCHED
+  SILENCED
+  FAILED
+}
+
+enum LoginMethod {
+  PHYSICAL
+  REMOTE
+}
+
+model ConnectedIoTDevice {
+  id             String   @id @default(uuid())
+  userId         String
+  deviceName     String
+  platform       String
+  connectionType String   @default("WebBluetooth")
+  endpointRef    String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user            User            @relation(fields: [userId], references: [id])
+  alarmDispatches AlarmDispatch[]
+
+  @@unique([userId, endpointRef, platform], name: "device_unique_identifier")
+}
+
+model CriticalAlert {
+  id                     String      @id @default(uuid())
+  userId                 String
+  source                 String
+  subject                String
+  body                   String
+  alarmStatus            AlarmStatus @default(ACTIVE)
+  silenceChallenge       String
+  triggeredFromMessageId String?
+  triggeredAt            DateTime    @default(now())
+  silencedAt             DateTime?
+
+  user       User            @relation(fields: [userId], references: [id])
+  message    InboxMessage?   @relation(fields: [triggeredFromMessageId], references: [id])
+  dispatches AlarmDispatch[]
+}
+
+model AlarmDispatch {
+  id                    String         @id @default(uuid())
+  alertId               String
+  deviceId              String
+  protocol              String         @default("WEB_BLUETOOTH")
+  synchronizedTriggerAt DateTime
+  status                DispatchStatus @default(PENDING)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  alert  CriticalAlert      @relation(fields: [alertId], references: [id])
+  device ConnectedIoTDevice @relation(fields: [deviceId], references: [id])
+}
+
+model DashboardPhysicalLogin {
+  id              String      @id @default(uuid())
+  userId          String
+  dashboardOrigin String
+  loginMethod     LoginMethod @default(PHYSICAL)
+  deviceProof     String
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+  revokedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── Push Notification Aggressor (QuantAds) ──────────────────────
+
+enum ChallengeStatus {
+  PENDING
+  SATISFIED
+  ESCALATED
+  EXPIRED
+}
+
+enum NotificationStatus {
+  QUEUED
+  DISPATCHED
+  ACKNOWLEDGED
+  FAILED
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model LivenessChallenge {
+  id               String          @id @default(uuid())
+  userId           String
+  status           ChallengeStatus @default(PENDING)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  expiresAt        DateTime
+  quantadsTarget   String          @default("quantads://campaign/identity-check")
+  quantchatTitle   String          @default("Quantchat SDK Warning")
+  quantchatBody    String          @default("Biometric liveness token ignored. Open to resolve.")
+  escalatedAt      DateTime?
+  satisfiedAt      DateTime?
+  lastPushAt       DateTime?
+  ssoToken         String?
+
+  user          User               @relation(fields: [userId], references: [id])
+  notifications PushNotification[]
+
+  @@index([userId])
+  @@index([status, createdAt])
+}
+
+model PushNotification {
+  id              String               @id @default(uuid())
+  userId          String
+  challengeId     String?
+  title           String
+  body            String
+  payload         String
+  priority        NotificationPriority @default(NORMAL)
+  status          NotificationStatus   @default(QUEUED)
+  channel         String               @default("quantchat-warning")
+  createdAt       DateTime             @default(now())
+  dispatchedAt    DateTime?
+  acknowledgedAt  DateTime?
+
+  user      User                @relation(fields: [userId], references: [id])
+  challenge LivenessChallenge?  @relation(fields: [challengeId], references: [id])
+
+  @@index([userId])
+  @@index([challengeId])
+}
+
+// ─── QuantTube Watch History (Inbox Relevance Sync) ──────────────
+
+model QuanttubeWatchEvent {
+  id             String   @id @default(uuid())
+  userId         String
+  videoTitle     String
+  watchedSeconds Int
+  watchedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
 }

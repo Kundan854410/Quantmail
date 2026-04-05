@@ -3,6 +3,10 @@ import cors from "@fastify/cors";
 import { authRoutes } from "./routes/auth";
 import { inboxRoutes } from "./routes/inbox";
 import { digitalTwinRoutes } from "./routes/digitalTwin";
+import { iotRoutes } from "./routes/iot";
+import { quanteditsRoutes } from "./routes/quantedits";
+import { pushRoutes } from "./routes/push";
+import { quanttubeRoutes } from "./routes/quanttube";
 
 const app = Fastify({ logger: true });
 
@@ -11,6 +15,10 @@ async function main(): Promise<void> {
   await app.register(authRoutes);
   await app.register(inboxRoutes);
   await app.register(digitalTwinRoutes);
+  await app.register(iotRoutes);
+  await app.register(quanteditsRoutes);
+  await app.register(pushRoutes);
+  await app.register(quanttubeRoutes);
 
   app.get("/health", async () => ({ status: "ok", service: "quantmail" }));
 

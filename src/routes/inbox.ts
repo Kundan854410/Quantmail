@@ -5,6 +5,11 @@ import {
   sanitizeBody,
   type IncomingMessage,
 } from "../interceptors/InboxInterceptor";
+import {
+  isCriticalPaymentOrTokenAlert,
+  triggerSynchronizedWebBluetoothAlarm,
+} from "../services/criticalAlarmService";
+import { rankInboxMessagesByRelevance } from "../services/inboxRelevanceSync";
 
 export async function inboxRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -53,7 +58,7 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(404).send({ error: "Recipient not found" });
     }
 
-    await prisma.inboxMessage.create({
+    const createdMessage = await prisma.inboxMessage.create({
       data: {
         userId: user.id,
         senderEmail: message.senderEmail,
@@ -61,6 +66,21 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
         body: sanitizeBody(message.body || ""),
       },
     });
+
+    // Trigger synchronized IoT alarm for critical payment / token alerts
+    if (isCriticalPaymentOrTokenAlert(message)) {
+      const alarm = await triggerSynchronizedWebBluetoothAlarm({
+        userId: user.id,
+        source: "inbox_webhook",
+        subject: message.subject || "(no subject)",
+        body: message.body || "",
+        triggeredFromMessageId: createdMessage.id,
+      });
+      return reply.code(201).send({
+        status: "delivered_with_critical_alarm",
+        alarm,
+      });
+    }
 
     return reply.code(201).send({ status: "delivered" });
   });

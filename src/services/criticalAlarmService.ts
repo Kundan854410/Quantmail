@@ -1,0 +1,149 @@
+import { prisma } from "../db";
+import { type IncomingMessage } from "../interceptors/InboxInterceptor";
+import { randomUUID } from "node:crypto";
+
+const CRITICAL_KEYWORDS = [
+  "critical payment",
+  "payment alert",
+  "payment failed",
+  "ecosystem token",
+  "token alert",
+  "token compromise",
+  "wallet drain",
+  "unauthorized transfer",
+];
+
+const SYNCHRONIZED_TRIGGER_DELAY_MS = Number.parseInt(
+  process.env["SYNCHRONIZED_TRIGGER_DELAY_MS"] || "1500",
+  10
+);
+
+function includesCriticalKeywords(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return CRITICAL_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function buildSilenceChallenge(userId: string): string {
+  return `DASHBOARD_ONLY_${userId}_${randomUUID()}`;
+}
+
+export function isCriticalPaymentOrTokenAlert(
+  message: IncomingMessage
+): boolean {
+  const combined = `${message.subject || ""}\n${message.body || ""}`;
+  return includesCriticalKeywords(combined);
+}
+
+export async function triggerSynchronizedWebBluetoothAlarm(params: {
+  userId: string;
+  source: string;
+  subject: string;
+  body: string;
+  triggeredFromMessageId?: string;
+}): Promise<{
+  alertId: string;
+  synchronizedTriggerAt: string;
+  dispatchCount: number;
+  silenceChallenge: string;
+}> {
+  const devices = await prisma.connectedIoTDevice.findMany({
+    where: { userId: params.userId, active: true },
+  });
+
+  const silenceChallenge = buildSilenceChallenge(params.userId);
+  const synchronizedTriggerAt = new Date(
+    Date.now() + SYNCHRONIZED_TRIGGER_DELAY_MS
+  );
+
+  const alert = await prisma.criticalAlert.create({
+    data: {
+      userId: params.userId,
+      source: params.source,
+      subject: params.subject,
+      body: params.body,
+      silenceChallenge,
+      triggeredFromMessageId: params.triggeredFromMessageId || null,
+    },
+  });
+
+  const dispatches = await Promise.all(
+    devices.map((device) =>
+      prisma.alarmDispatch.create({
+        data: {
+          alertId: alert.id,
+          deviceId: device.id,
+          protocol: device.connectionType,
+          synchronizedTriggerAt,
+        },
+      })
+    )
+  );
+
+  return {
+    alertId: alert.id,
+    synchronizedTriggerAt: synchronizedTriggerAt.toISOString(),
+    dispatchCount: dispatches.length,
+    silenceChallenge,
+  };
+}
+
+export async function silenceAlarmFromDashboardPhysicalLogin(params: {
+  userId: string;
+  alertId: string;
+  dashboardSessionId: string;
+  silenceChallenge: string;
+}): Promise<{ silenced: boolean; reason?: string }> {
+  const session = await prisma.dashboardPhysicalLogin.findFirst({
+    where: {
+      id: params.dashboardSessionId,
+      userId: params.userId,
+      loginMethod: "PHYSICAL",
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+  });
+
+  if (!session) {
+    return {
+      silenced: false,
+      reason: "PHYSICAL_DASHBOARD_LOGIN_REQUIRED",
+    };
+  }
+
+  const alert = await prisma.criticalAlert.findUnique({
+    where: { id: params.alertId },
+    select: {
+      id: true,
+      userId: true,
+      alarmStatus: true,
+      silenceChallenge: true,
+    },
+  });
+
+  if (!alert || alert.userId !== params.userId) {
+    return { silenced: false, reason: "ALERT_NOT_FOUND" };
+  }
+  if (alert.silenceChallenge !== params.silenceChallenge) {
+    return { silenced: false, reason: "INVALID_SILENCE_CHALLENGE" };
+  }
+
+  if (alert.alarmStatus === "SILENCED") {
+    return { silenced: true };
+  }
+
+  await prisma.$transaction([
+    prisma.criticalAlert.update({
+      where: { id: params.alertId },
+      data: {
+        alarmStatus: "SILENCED",
+        silencedAt: new Date(),
+      },
+    }),
+    prisma.alarmDispatch.updateMany({
+      where: { alertId: params.alertId },
+      data: { status: "SILENCED" },
+    }),
+  ]);
+
+  return { silenced: true };
+}
