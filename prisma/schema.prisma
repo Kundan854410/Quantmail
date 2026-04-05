@@ -29,6 +29,11 @@ model User {
   livenessChallenges        LivenessChallenge[]
   pushNotifications         PushNotification[]
   quanttubeWatchEvents      QuanttubeWatchEvent[]
+  emails                    Email[]
+  events                    Event[]
+  documents                 Document[]
+  files                     File[]
+  sheets                    Sheet[]
 }
 
 model LivenessGrid {
@@ -255,6 +260,67 @@ model QuanttubeWatchEvent {
   videoTitle     String
   watchedSeconds Int
   watchedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ─── Super App Core Models ────────────────────────────────────────
+
+model Email {
+  id          String   @id @default(uuid())
+  userId      String
+  subject     String
+  snippet     String   @default("")
+  body        String
+  date        DateTime @default(now())
+  isRead      Boolean  @default(false)
+  isStarred   Boolean  @default(false)
+  senderId    String
+  recipientId String
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  date      DateTime
+  time      String
+  attendees String   @default("[]")
+  isAI      Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  content      String   @default("")
+  lastModified DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model File {
+  id         String   @id @default(uuid())
+  userId     String
+  name       String
+  type       String
+  size       Int
+  url        String
+  uploadedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Sheet {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  dataJson     String   @default("{}")
+  lastModified DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 }
