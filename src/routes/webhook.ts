@@ -130,7 +130,14 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post<{
     Body: { payload: string; signature: string; secret: string };
-  }>("/webhooks/verify", async (request, reply) => {
+  }>("/webhooks/verify", {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: "1 minute",
+      },
+    },
+    handler: async (request, reply) => {
     if (!checkVerifyRateLimit(request.ip)) {
       return reply.code(429).send({ error: "Rate limit exceeded" });
     }
@@ -145,5 +152,6 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
 
     const valid = verifyWebhookSignature(payload, signature, secret);
     return reply.send({ valid });
+    },
   });
 }

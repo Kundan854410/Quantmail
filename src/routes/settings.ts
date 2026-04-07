@@ -27,7 +27,14 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       customModelUrl?: string;
       customModelKey?: string;
     };
-  }>("/settings/keys", async (request, reply) => {
+  }>("/settings/keys", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
+    handler: async (request, reply) => {
     if (!rateLimiter.check(request.ip)) {
       return reply.code(429).send({ error: "Rate limit exceeded" });
     }
@@ -95,6 +102,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({
       message: "API keys saved successfully. Your keys are encrypted and stored securely.",
     });
+    },
   });
 
   /**
@@ -103,7 +111,14 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
    *
    * Authorization: Bearer <ssoToken>
    */
-  app.get("/settings/keys", async (request, reply) => {
+  app.get("/settings/keys", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
+    handler: async (request, reply) => {
     if (!rateLimiter.check(request.ip)) {
       return reply.code(429).send({ error: "Rate limit exceeded" });
     }
@@ -149,6 +164,6 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       message:
         "Use your own API key for unlimited access (Your keys are encrypted and stored securely).",
     });
+    },
   });
 }
-

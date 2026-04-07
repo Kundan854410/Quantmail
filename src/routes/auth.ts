@@ -107,7 +107,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post<{
     Body: { token: string };
-  }>("/auth/verify", AUTH_RATE_LIMIT, async (request, reply) => {
+  }>("/auth/verify", {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 minute",
+      },
+    },
+    handler: async (request, reply) => {
     const { token } = request.body;
     if (!token) {
       return reply.code(400).send({ error: "token required" });
@@ -133,5 +140,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.send({ user });
+    },
   });
 }
