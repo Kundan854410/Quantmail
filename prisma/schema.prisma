@@ -289,21 +289,6 @@ model PushNotification {
   @@index([challengeId])
 }
 
-// ─── Quanttime Calendar (AI Smart Calendar) ──────────────────────
-
-model CalendarEvent {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String
-  startTime DateTime
-  endTime   DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-}
-
 // ─── QuantTube Watch History (Inbox Relevance Sync) ──────────────
 
 model QuanttubeWatchEvent {
