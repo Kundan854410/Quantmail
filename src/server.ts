@@ -111,7 +111,6 @@ async function main(): Promise<void> {
   await app.register(quanteditsRoutes);
   await app.register(pushRoutes);
   await app.register(quanttubeRoutes);
-<<<<<<< HEAD
   await app.register(orchestratorRoutes);
   await app.register(tasksRoutes);
   await app.register(chatRoutes);
@@ -127,9 +126,6 @@ async function main(): Promise<void> {
   await app.register(webhookRoutes);
   await app.register(superAppRoutes);
   await app.register(smartReplyRoutes);
-=======
-  await app.register(sheetsRoutes);
->>>>>>> origin/copilot/add-spreadsheet-ui-and-interactivity
 
   app.get(
     "/health",
