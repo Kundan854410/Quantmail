@@ -111,6 +111,7 @@ async function main(): Promise<void> {
   await app.register(quanteditsRoutes);
   await app.register(pushRoutes);
   await app.register(quanttubeRoutes);
+<<<<<<< HEAD
   await app.register(orchestratorRoutes);
   await app.register(tasksRoutes);
   await app.register(chatRoutes);
@@ -126,6 +127,9 @@ async function main(): Promise<void> {
   await app.register(webhookRoutes);
   await app.register(superAppRoutes);
   await app.register(smartReplyRoutes);
+=======
+  await app.register(driveRoutes);
+>>>>>>> origin/copilot/add-file-explorer-ui-and-upload-functionality
 
   app.get(
     "/health",
