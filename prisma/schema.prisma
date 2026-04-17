@@ -34,6 +34,8 @@ model User {
 
   livenessGrid              LivenessGrid?
   digitalTwin               DigitalTwin?
+  webAuthnCredentials       WebAuthnCredential[]
+  sessions                  UserSession[]
   inboxMessages             InboxMessage[]
   saccadeSessions           SaccadeSession[]
   iotDevices                ConnectedIoTDevice[]
@@ -455,6 +457,48 @@ model DriveFile {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
+}
+
+// ─── WebAuthn Credentials ─────────────────────────────────────────
+
+model WebAuthnCredential {
+  id               String   @id @default(uuid())
+  userId           String
+  credentialId     String   @unique
+  publicKey        String
+  counter          BigInt   @default(0)
+  deviceType       String   @default("singleDevice")
+  backedUp         Boolean  @default(false)
+  transports       String   @default("[]")
+  aaguid           String   @default("")
+  name             String   @default("Passkey")
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── User Sessions ────────────────────────────────────────────────
+
+model UserSession {
+  id             String   @id @default(uuid())
+  userId         String
+  refreshTokenId String   @unique
+  userAgent      String   @default("")
+  ip             String   @default("")
+  deviceFingerprint String @default("")
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+  lastActiveAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenId])
+  @@index([userId, revokedAt])
 }
 
 // ─── Webhook Subscriptions ────────────────────────────────────────
