@@ -27,6 +27,7 @@ import { adminRoutes } from "./routes/admin";
 import { webhookRoutes } from "./routes/webhook";
 import { superAppRoutes } from "./routes/superapp";
 import { smartReplyRoutes } from "./routes/smartReply";
+import { streakRoutes } from "./routes/streak";
 import { prisma } from "./db";
 import { landingPage } from "./landing";
 
@@ -124,6 +125,7 @@ async function main(): Promise<void> {
   await app.register(webhookRoutes);
   await app.register(superAppRoutes);
   await app.register(smartReplyRoutes);
+  await app.register(streakRoutes);
 
   app.get(
     "/health",
