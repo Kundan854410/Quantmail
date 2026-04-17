@@ -1,14 +1,17 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../db";
 import { performLivenessCheck } from "../services/livenessService";
-import { deriveBiometricHash } from "../utils/crypto";
 import {
+  deriveBiometricHash,
+  encryptApiKey,
   generateMasterSSOToken,
   verifyMasterSSOToken,
 } from "../utils/crypto";
 import { propagateMasterIdToAll } from "../utils/masterIdPropagation";
 
 const SSO_SECRET = process.env["SSO_SECRET"] || "quantmail-dev-secret";
+const ENCRYPTION_SECRET =
+  process.env["ENCRYPTION_SECRET"] || "quantmail-key-secret";
 const AUTH_RATE_LIMIT_MAX = Number(process.env["AUTH_RATE_LIMIT_MAX"] || 5);
 const AUTH_RATE_LIMIT_WINDOW = process.env["AUTH_RATE_LIMIT_WINDOW"] || "1 minute";
 
@@ -72,7 +75,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         verified: true,
         livenessGrid: {
           create: {
-            facialMatrixHash: liveness.facialMatrixHash,
+            facialMatrixHash: encryptApiKey(
+              liveness.facialMatrixHash,
+              ENCRYPTION_SECRET
+            ),
             livenessScore: liveness.livenessScore,
             passed: true,
           },
